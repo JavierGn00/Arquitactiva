@@ -1,16 +1,13 @@
 #include <Adafruit_NeoPixel.h>
+#include <stdlib.h>
 
 #define LED_PIN 6
 #define LED_COUNT 458
 
-// Definir los pines para los sensores ultrasónicos
-const int triggerPin = 2; // Pin de trigger común para todos los sensores
-const int echoPins[9] = {3, 4, 5, 7, 8, 9, 10, 11, 12}; // Pines de eco para cada sensor
-
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-// Definición de pines para el botón de cambio de juego
-const int gameChangePin = 13;
+// Definición de pines para los botones
+const int buttonPins[10] = {2, 3, 4, 5, 7, 8, 9, 10, 11, 12};
 
 // Representación de la cuadrícula del juego de memoria
 int memoryGrid[3][3] = {{0, 0, 0},
@@ -54,15 +51,15 @@ uint32_t ticTacToeDrawColor = strip.Color(0, 255, 0);    // Verde para empate
 
 // Rangos de tramos de la tira LED para el juego Tic Tac Toe
 const int ticTacToeSegmentRanges[9][2] = {{0, 49},    // Tramo 1: LEDs 0-12
-                                      {50, 100},   // Tramo 2: LEDs 13-22
-                                      {101, 151},   // Tramo 3: LEDs 23-33
-                                      {152, 202},   // Tramo 4: LEDs 34-48
-                                      {203, 253},   // Tramo 5: LEDs 49-64
-                                      {254, 304},  // Tramo 6: LEDs 65-76
-                                      {305, 355}, // Tramo 7: LEDs 77-92
-                                      {356, 406}, // Tramo 8: LEDs 93-101
-                                      {407, 457}  // Tramo 9: LEDs 102-110
-                                         };
+                                      {50, 99},   // Tramo 2: LEDs 13-22
+                                      {100, 149},   // Tramo 3: LEDs 23-33
+                                      {150, 199},   // Tramo 4: LEDs 34-48
+                                      {200, 249},   // Tramo 5: LEDs 49-64
+                                      {250, 299},  // Tramo 6: LEDs 65-76
+                                      {300, 349}, // Tramo 7: LEDs 77-92
+                                      {350, 399}, // Tramo 8: LEDs 93-101
+                                      {400, 449}  // Tramo 9: LEDs 102-110
+                                     };
 
 // Variables para control del juego Tic Tac Toe
 int ticTacToeCurrentPlayer = 1;
@@ -78,7 +75,7 @@ void setup() {
 
   // Configurar pines de los botones
   for (int i = 0; i < 10; i++) {
-    pinMode(echoPins[i], INPUT);
+    pinMode(buttonPins[i], INPUT_PULLUP);
   }
 
   // Inicializar la cuadrícula y la tira LED en blanco para el juego de memoria
@@ -87,21 +84,8 @@ void setup() {
 }
 
 void loop() {
-  
-  strip.begin();
-  strip.show();
-
-  // Configurar el pin de cambio de juego
-  pinMode(gameChangePin, INPUT_PULLUP);
-
-  // Configurar pines de los sensores ultrasónicos
-  pinMode(triggerPin, OUTPUT);
-  for (int i = 0; i < 9; i++) {
-    pinMode(echoPins[i], INPUT);
-  }
-  
   // Cambiar entre el juego de memoria y el juego Tic Tac Toe al presionar el décimo botón
-  if (digitalRead(gameChangePin) == LOW) {
+  if (digitalRead(buttonPins[9]) == LOW) {
     isMemoryGameActive = !isMemoryGameActive;
     delay(200); // Debounce
     clearStrip();
@@ -123,31 +107,11 @@ void loop() {
   }
 }
 
-float measureDistance(int sensorIndex) {
-  digitalWrite(triggerPin, LOW);
-  delayMicroseconds(2);
-  digitalWrite(triggerPin, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(triggerPin, LOW);
-  return pulseIn(echoPins[sensorIndex], HIGH) / 58.0; // Calcular la distancia en centímetros
-}
-
-// Función para verificar si un objeto está cerca (a menos de 30 cm) usando sensores ultrasónicos
-bool isObjectNear() {
-  for (int i = 0; i < 9; i++) {
-    float distance = measureDistance(i);
-    if (distance < 30.0) {
-      return true;
-    }
-  }
-  return false;
-}
-
 // Loop para el juego de memoria
 void memoryGameLoop() {
   // Verificar si se ha presionado un botón
   for (int i = 0; i < 9; i++) {
-    if (digitalRead(echoPins[i]) == LOW) {
+    if (digitalRead(buttonPins[i]) == LOW) {
       // Actualizar la cuadrícula y la tira LED
       int row = i / 3;
       int col = i % 3;
@@ -193,7 +157,7 @@ void ticTacToeGameLoop() {
 
   // Verificar si se ha presionado un botón
   for (int i = 0; i < 9; i++) {
-    if (digitalRead(echoPins[i]) == LOW) {
+    if (digitalRead(buttonPins[i]) == LOW) {
       int row = i / 3;
       int col = i % 3;
       if (ticTacToeGrid[row][col] == 0) {
