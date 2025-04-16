@@ -1,0 +1,315 @@
+#include <Adafruit_NeoPixel.h>
+#include <stdlib.h>
+
+#define LED_PIN 6
+#define LED_COUNT 458
+
+Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+// Definición de pines para los botones
+const int buttonPins[10] = {2, 3, 4, 5, 7, 8, 9, 10, 11, 12};
+
+// Representación de la cuadrícula del juego de memoria
+int memoryGrid[3][3] = {{0, 0, 0},
+                        {0, 0, 0},
+                        {0, 0, 0}};
+
+// Colores para el juego de memoria
+uint32_t colors[10] = {strip.Color(255, 255, 0),   // Amarillo
+                       strip.Color(0, 0, 255),     // Azul
+                       strip.Color(255, 0, 0),     // Rojo
+                       strip.Color(0, 255, 0),     // Verde
+                       strip.Color(255, 255, 255), // Blanco
+                       strip.Color(128, 0, 128),   // Morado
+                       strip.Color(255, 165, 0),   // Naranja
+                       strip.Color(0, 255, 255),   // Cian
+                       strip.Color(255, 192, 203), // Rosa claro
+                       strip.Color(128, 128, 128)  // Gris
+                      };
+
+// Rangos de tramos de la tira LED para el juego de memoria
+const int memorySegmentRanges[9][2] = {{0, 49},    // Tramo 1: LEDs 0-12
+                                      {50, 99},   // Tramo 2: LEDs 13-22
+                                      {100, 149},   // Tramo 3: LEDs 23-33
+                                      {150, 199},   // Tramo 4: LEDs 34-48
+                                      {200, 249},   // Tramo 5: LEDs 49-64
+                                      {250, 299},  // Tramo 6: LEDs 65-76
+                                      {300, 349}, // Tramo 7: LEDs 77-92
+                                      {350, 399}, // Tramo 8: LEDs 93-101
+                                      {400, 449}  // Tramo 9: LEDs 102-110
+                                     };
+
+// Representación de la cuadrícula del juego Tic Tac Toe
+int ticTacToeGrid[3][3] = {{0, 0, 0},
+                           {0, 0, 0},
+                           {0, 0, 0}};
+
+// Colores para los jugadores del juego Tic Tac Toe
+uint32_t ticTacToePlayer1Color = strip.Color(0, 0, 255);  // Azul
+uint32_t ticTacToePlayer2Color = strip.Color(255, 0, 0); // Rojo
+uint32_t ticTacToeDrawColor = strip.Color(0, 255, 0);    // Verde para empate
+
+// Rangos de tramos de la tira LED para el juego Tic Tac Toe
+const int ticTacToeSegmentRanges[9][2] = {{0, 49},    // Tramo 1: LEDs 0-12
+                                      {50, 99},   // Tramo 2: LEDs 13-22
+                                      {100, 149},   // Tramo 3: LEDs 23-33
+                                      {150, 199},   // Tramo 4: LEDs 34-48
+                                      {200, 249},   // Tramo 5: LEDs 49-64
+                                      {250, 299},  // Tramo 6: LEDs 65-76
+                                      {300, 349}, // Tramo 7: LEDs 77-92
+                                      {350, 399}, // Tramo 8: LEDs 93-101
+                                      {400, 449}  // Tramo 9: LEDs 102-110
+                                     };
+
+// Variables para control del juego Tic Tac Toe
+int ticTacToeCurrentPlayer = 1;
+int ticTacToeMovesCount = 0;
+bool ticTacToeGameOver = false;
+
+// Variable para controlar qué juego está activo
+bool isMemoryGameActive = true;
+
+void setup() {
+  strip.begin();
+  strip.show();
+
+  // Configurar pines de los botones
+  for (int i = 0; i < 10; i++) {
+    pinMode(buttonPins[i], INPUT_PULLUP);
+  }
+
+  // Inicializar la cuadrícula y la tira LED en blanco para el juego de memoria
+  clearMemoryGrid();
+  clearMemoryStrip();
+}
+
+void loop() {
+  // Cambiar entre el juego de memoria y el juego Tic Tac Toe al presionar el décimo botón
+  if (digitalRead(buttonPins[9]) == LOW) {
+    isMemoryGameActive = !isMemoryGameActive;
+    delay(200); // Debounce
+    clearStrip();
+    if (isMemoryGameActive) {
+      clearMemoryGrid();
+      clearMemoryStrip();
+    } else {
+      clearTicTacToeGrid();
+      clearTicTacToeStrip();
+    }
+  }
+
+  if (isMemoryGameActive) {
+    // Juego de memoria
+    memoryGameLoop();
+  } else {
+    // Juego Tic Tac Toe
+    ticTacToeGameLoop();
+  }
+}
+
+// Loop para el juego de memoria
+void memoryGameLoop() {
+  // Verificar si se ha presionado un botón
+  for (int i = 0; i < 9; i++) {
+    if (digitalRead(buttonPins[i]) == LOW) {
+      // Actualizar la cuadrícula y la tira LED
+      int row = i / 3;
+      int col = i % 3;
+      toggleMemoryColor(row, col);
+      delay(200); // Debounce
+    }
+  }
+}
+
+// Cambiar el color de una casilla en el juego de memoria
+void toggleMemoryColor(int row, int col) {
+  memoryGrid[row][col] = (memoryGrid[row][col] + 1) % 10; // Cambiar al siguiente color
+
+  int segmentIndex = (row * 3) + col;
+  int segmentStart = memorySegmentRanges[segmentIndex][0];
+  int segmentEnd = memorySegmentRanges[segmentIndex][1];
+
+  for (int i = segmentStart; i <= segmentEnd; i++) {
+    strip.setPixelColor(i, colors[memoryGrid[row][col]]);
+  }
+
+  strip.show();
+}
+
+// Loop para el juego Tic Tac Toe
+void ticTacToeGameLoop() {
+  // Verificar si hay un ganador o empate
+  if (!ticTacToeGameOver && ticTacToeMovesCount >= 5) {
+    int winner = checkTicTacToeWinner();
+    if (winner != 0) {
+      ticTacToeGameOver = true;
+      flashTicTacToeWinner(winner);
+      resetTicTacToeGame();
+      return;
+    }
+    if (ticTacToeMovesCount == 9) {
+      ticTacToeGameOver = true;
+      flashTicTacToeWinner(0); // Empate
+      resetTicTacToeGame();
+      return;
+    }
+  }
+
+  // Verificar si se ha presionado un botón
+  for (int i = 0; i < 9; i++) {
+    if (digitalRead(buttonPins[i]) == LOW) {
+      int row = i / 3;
+      int col = i % 3;
+      if (ticTacToeGrid[row][col] == 0) {
+        // Actualizar la cuadrícula y la tira LED
+        ticTacToeGrid[row][col] = ticTacToeCurrentPlayer;
+        updateTicTacToeLED(row, col, ticTacToeCurrentPlayer);
+
+        // Cambiar al siguiente jugador
+        ticTacToeCurrentPlayer = (ticTacToeCurrentPlayer == 1) ? 2 : 1;
+        ticTacToeMovesCount++;
+      }
+      delay(200); // Debounce
+    }
+  }
+}
+
+// Actualizar el color del LED correspondiente a la casilla seleccionada en el juego Tic Tac Toe
+void updateTicTacToeLED(int row, int col, int player) {
+  int segmentIndex = (row * 3) + col;
+  int segmentStart = ticTacToeSegmentRanges[segmentIndex][0];
+  int segmentEnd = ticTacToeSegmentRanges[segmentIndex][1];
+
+  for (int i = segmentStart; i <= segmentEnd; i++) {
+    uint32_t color = (player == 1) ? ticTacToePlayer1Color : ticTacToePlayer2Color;
+    strip.setPixelColor(i, color);
+  }
+
+  strip.show();
+}
+
+// Verificar si hay un ganador o empate en el juego Tic Tac Toe
+int checkTicTacToeWinner() {
+  // Verificar filas
+  for (int i = 0; i < 3; i++) {
+    if (ticTacToeGrid[i][0] != 0 && ticTacToeGrid[i][0] == ticTacToeGrid[i][1] && ticTacToeGrid[i][0] == ticTacToeGrid[i][2]) {
+      return ticTacToeGrid[i][0];
+    }
+  }
+
+  // Verificar columnas
+  for (int i = 0; i < 3; i++) {
+    if (ticTacToeGrid[0][i] != 0 && ticTacToeGrid[0][i] == ticTacToeGrid[1][i] && ticTacToeGrid[0][i] == ticTacToeGrid[2][i]) {
+      return ticTacToeGrid[0][i];
+    }
+  }
+
+  // Verificar diagonales
+  if (ticTacToeGrid[0][0] != 0 && ticTacToeGrid[0][0] == ticTacToeGrid[1][1] && ticTacToeGrid[0][0] == ticTacToeGrid[2][2]) {
+    return ticTacToeGrid[0][0];
+  }
+  if (ticTacToeGrid[0][2] != 0 && ticTacToeGrid[0][2] == ticTacToeGrid[1][1] && ticTacToeGrid[0][2] == ticTacToeGrid[2][0]) {
+    return ticTacToeGrid[0][2];
+  }
+
+  return 0; // No hay ganador
+}
+
+// Parpadear la tira LED indicando el ganador o empate en el juego Tic Tac Toe
+void flashTicTacToeWinner(int winner) {
+  int flashCount = 3;
+  int flashDelay = 300;
+
+  if (winner == 1) {
+    // Jugador 1 ganó
+    for (int i = 0; i < flashCount; i++) {
+      clearTicTacToeStrip();
+      delay(flashDelay);
+      showTicTacToeGrid(ticTacToePlayer1Color);
+      delay(flashDelay);
+    }
+  } else if (winner == 2) {
+    // Jugador 2 ganó
+    for (int i = 0; i < flashCount; i++) {
+      clearTicTacToeStrip();
+      delay(flashDelay);
+      showTicTacToeGrid(ticTacToePlayer2Color);
+      delay(flashDelay);
+    }
+  } else {
+    // Empate
+    for (int i = 0; i < flashCount; i++) {
+      clearTicTacToeStrip();
+      delay(flashDelay);
+      showTicTacToeGrid(ticTacToeDrawColor);
+      delay(flashDelay);
+    }
+  }
+}
+
+// Mostrar la cuadrícula del juego Tic Tac Toe en la tira LED
+void showTicTacToeGrid(uint32_t color) {
+  for (int i = 0; i < 9; i++) {
+    int row = i / 3;
+    int col = i % 3;
+    int segmentIndex = (row * 3) + col;
+    int segmentStart = ticTacToeSegmentRanges[segmentIndex][0];
+    int segmentEnd = ticTacToeSegmentRanges[segmentIndex][1];
+
+    if (ticTacToeGrid[row][col] != 0) {
+      for (int j = segmentStart; j <= segmentEnd; j++) {
+        strip.setPixelColor(j, color);
+      }
+    }
+  }
+
+  strip.show();
+}
+
+// Reiniciar el juego Tic Tac Toe
+void resetTicTacToeGame() {
+  ticTacToeCurrentPlayer = 1;
+  ticTacToeMovesCount = 0;
+  ticTacToeGameOver = false;
+  clearTicTacToeGrid();
+  clearTicTacToeStrip();
+}
+
+// Limpiar la cuadrícula del juego de memoria
+void clearMemoryGrid() {
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      memoryGrid[i][j] = 0;
+    }
+  }
+}
+
+// Limpiar la tira LED para el juego de memoria
+void clearMemoryStrip() {
+  for (int i = 0; i < LED_COUNT; i++) {
+    strip.setPixelColor(i, strip.Color(0, 0, 0));
+  }
+  strip.show();
+}
+
+// Limpiar la cuadrícula del juego Tic Tac Toe
+void clearTicTacToeGrid() {
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      ticTacToeGrid[i][j] = 0;
+    }
+  }
+}
+
+// Limpiar la tira LED para el juego Tic Tac Toe
+void clearTicTacToeStrip() {
+  clearStrip();
+}
+
+// Limpiar la tira LED
+void clearStrip() {
+  for (int i = 0; i < LED_COUNT; i++) {
+    strip.setPixelColor(i, strip.Color(0, 0, 0));
+  }
+  strip.show();
+}
